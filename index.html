@@ -3,21 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Coding Aid (Claude Sonnet 5)</title>
+<title>Coding Aid</title>
 
-<!-- 第三方套件：marked & purify -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
-
-<!-- 文件解析：Mammoth.js 讀 .docx，SheetJS 讀 .xlsx -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-
-<!-- Highlight.js 語法高亮 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-
-<!-- KaTeX 數學公式渲染 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
@@ -66,15 +59,12 @@
   .msgContent p { margin: 0 0 8px; }
   .msgContent p:last-child { margin-bottom: 0; }
   .msgContent ul, .msgContent ol { margin: 4px 0 8px 20px; }
-
-  /* 程式碼區塊高亮與按鈕樣式 */
   .codeBlockContainer { position: relative; margin: 8px 0; border-radius: 6px; overflow: hidden; background: var(--code-bg); }
   .codeBlockHeader { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 4px 12px; font-size: 12px; color: #abb2bf; font-family: monospace; }
   .codeCopyBtn { border: none; background: transparent; color: #abb2bf; cursor: pointer; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
   .codeCopyBtn:hover { background: rgba(255,255,255,0.1); color: #fff; }
   .msgContent pre { margin: 0; padding: 12px; overflow-x: auto; background: var(--code-bg); }
   .msgContent code { font-family: 'Fira Code', Consolas, Monaco, monospace; font-size: 13px; }
-
   .msgMeta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 11px; color: var(--text-light); }
   .msgMeta button { border: none; background: none; cursor: pointer; color: var(--text-light); font-size: 12px; padding: 2px 4px; border-radius: 4px; }
   .msgMeta button:hover { background: var(--hover); color: var(--text); }
@@ -119,12 +109,17 @@
 </div>
 
 <script>
-// ⚠️ 替換為你的 Cloudflare Worker 部署網址
+
 const WORKER_URL = 'https://coding-aid.davchan-clp.workers.dev';
-const NAME = 'superfancyriceballs';
+const NAME = 'DIsqwN920dsFIB-GdfDWLSIJp-ddjdud-wiwncjsqi1OAJSOkof0483jdsddtdfh';
 const DEFAULT_MODEL = 'anthropic/claude-sonnet-5';
 
 let conversations = JSON.parse(localStorage.getItem('conversations') || '[]');
+// lastAttachment 與 lastAiResponse 不持久化，重新載入時還原為預設值
+conversations.forEach(c => {
+  c.lastAttachment = undefined;
+  c.lastAiResponse = '';
+});
 let activeId = null;
 let openMenuId = null;
 
@@ -136,7 +131,16 @@ function toggleTheme() {
 }
 
 function saveConversations() {
-  localStorage.setItem('conversations', JSON.stringify(conversations));
+  // 序列化前過濾掉會爆 localStorage 或不需要持久化的欄位
+  const toSave = conversations.map(c => {
+    const { lastAttachment, lastAiResponse, ...rest } = c;
+    return rest;
+  });
+  try {
+    localStorage.setItem('conversations', JSON.stringify(toSave));
+  } catch (e) {
+    console.error('儲存對話失敗（可能超過 localStorage 容量）:', e);
+  }
 }
 
 function getActiveConv() {
@@ -156,7 +160,7 @@ function newConversation() {
     id: Date.now().toString(),
     title: '新對話',
     model: DEFAULT_MODEL,
-    historySummary: '', // 由 Worker 端生成的滾動摘要
+    historySummary: '',
     messages: []
   };
   conversations.unshift(conv);
@@ -234,13 +238,11 @@ function formatTime(ts) {
   return d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
 }
 
-// 💡 渲染 Markdown + KaTeX + Highlight.js
 function renderMarkdownAndFeatures(container, text) {
   const rawHtml = marked.parse(text);
   const cleanHtml = DOMPurify.sanitize(rawHtml);
   container.innerHTML = cleanHtml;
 
-  // 1. KaTeX 渲染
   if (window.renderMathInElement) {
     renderMathInElement(container, {
       delimiters: [
@@ -253,7 +255,6 @@ function renderMarkdownAndFeatures(container, text) {
     });
   }
 
-  // 2. Highlight.js 高亮與複製
   container.querySelectorAll('pre code').forEach((codeBlock) => {
     hljs.highlightElement(codeBlock);
 
@@ -333,13 +334,13 @@ function buildMessageEl(m, conv) {
     retryBtn.onclick = () => {
       wrap.remove();
       conv.messages = conv.messages.filter(x => x !== m);
-      sendMessage(conv.lastQuery);
+      // 修正：直接重送，不重複 push user 訊息
+      resendLastQuery(conv);
     };
     meta.appendChild(retryBtn);
   }
 
   wrap.appendChild(meta);
-
   return wrap;
 }
 
@@ -368,8 +369,6 @@ async function fetchAutoTitle(conv, userQuery, aiAnswer) {
       conv.title = data.title.replace(/["']/g, '');
       saveConversations();
       renderSidebar();
-    } else {
-      console.warn('⚠️ Worker 回應成功但沒有 title 欄位：', data);
     }
   } catch (e) {
     console.error('❌ 標題生成請求失敗（網路層）:', e);
@@ -502,6 +501,14 @@ function renderAttachPreview() {
   box.appendChild(chip);
 }
 
+// ===== 重送邏輯（修正重試重複 push 問題）=====
+async function resendLastQuery(conv) {
+  if (!conv.lastQuery) return;
+  // 不 push 新的 user 訊息，直接構造請求
+  await _doSend(conv, conv.lastQuery, conv.lastAttachment, conv.lastAiResponse);
+}
+
+// ===== 主發送邏輯 =====
 async function sendMessage(overrideText) {
   const text = (overrideText !== undefined ? overrideText : inputBox.value.trim());
   if (!text) return;
@@ -515,6 +522,9 @@ async function sendMessage(overrideText) {
   renderAttachPreview();
 
   conv.lastQuery = text;
+  // lastAttachment 只在記憶體中保留，不寫入 localStorage（避免二進位附件爆容量）
+  conv.lastAttachment = attachmentToSend;
+
   conv.messages.push({
     role: 'user',
     text,
@@ -527,6 +537,21 @@ async function sendMessage(overrideText) {
   renderSidebar();
   renderMessages();
 
+  // 找上一輪 AI 回覆（逆序查找最後一條有文本的 bot 訊息）
+  let lastAiResponse = '';
+  for (let i = conv.messages.length - 1; i >= 0; i--) {
+    const msg = conv.messages[i];
+    if (msg.role === 'bot' && msg.text) {
+      lastAiResponse = msg.text;
+      break;
+    }
+  }
+  conv.lastAiResponse = lastAiResponse;
+
+  await _doSend(conv, text, attachmentToSend, lastAiResponse);
+}
+
+async function _doSend(conv, text, attachmentToSend, lastAiResponse) {
   const botMsg = { role: 'bot', text: '', time: Date.now() };
   conv.messages.push(botMsg);
   renderMessages();
@@ -534,9 +559,6 @@ async function sendMessage(overrideText) {
   const lastMsgWrap = box.lastElementChild;
   const lastContentEl = lastMsgWrap.querySelector('.msgContent');
   lastContentEl.textContent = '思考中...';
-
-  const priorBotMessages = conv.messages.filter(m => m.role === 'bot' && m !== botMsg);
-  const lastAiResponse = priorBotMessages.length > 0 ? priorBotMessages[priorBotMessages.length - 1].text : '';
 
   const queryToSend = attachmentToSend?.kind === 'text'
     ? `${text}\n\n【附加檔案：${attachmentToSend.filename}】\n${attachmentToSend.extractedText}`
@@ -568,43 +590,72 @@ async function sendMessage(overrideText) {
       throw new Error(errText);
     }
 
-    const newSummary = decodeURIComponent(res.headers.get('X-History-Summary') || '');
-    if (newSummary) conv.historySummary = newSummary;
-
+    // ===== SSE 解析（含 buffer 處理跨 chunk 行）=====
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let accumulatedText = '';
     let isFirstChunk = true;
+    let sseBuffer = '';
+
+    // Throttle 控制：每 80ms 才更新一次 DOM
+    let lastRenderTime = 0;
+    const RENDER_INTERVAL = 80;
+    let pendingRender = false;
+
+    function scheduleRender() {
+      if (pendingRender) return;
+      pendingRender = true;
+      requestAnimationFrame(() => {
+        renderMarkdownAndFeatures(lastContentEl, accumulatedText);
+        box.scrollTop = box.scrollHeight;
+        pendingRender = false;
+      });
+    }
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+      sseBuffer += decoder.decode(value, { stream: true });
+      const lines = sseBuffer.split('\n');
+      sseBuffer = lines.pop(); // 保留不完整行
 
       for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
-          try {
-            const json = JSON.parse(trimmed.slice(6));
-            const token = json.choices?.[0]?.delta?.content || json.delta?.text || '';
-            if (token) {
-              if (isFirstChunk) {
-                lastContentEl.textContent = '';
-                isFirstChunk = false;
-              }
-              accumulatedText += token;
-              botMsg.text = accumulatedText;
-              
-              renderMarkdownAndFeatures(lastContentEl, accumulatedText);
-              box.scrollTop = box.scrollHeight;
+        if (!trimmed.startsWith('data: ')) continue;
+        if (trimmed === 'data: [DONE]') continue;
+
+        try {
+          const json = JSON.parse(trimmed.slice(6));
+
+          // 處理 meta event
+          if (json.type === 'meta') {
+            if (json.history_summary) conv.historySummary = json.history_summary;
+            continue;
+          }
+
+          // 處理 token
+          const token = json.choices?.[0]?.delta?.content || json.delta?.text || '';
+          if (token) {
+            if (isFirstChunk) {
+              lastContentEl.textContent = '';
+              isFirstChunk = false;
             }
-          } catch (e) {}
-        }
+            accumulatedText += token;
+            botMsg.text = accumulatedText;
+
+            const now = Date.now();
+            if (now - lastRenderTime >= RENDER_INTERVAL) {
+              lastRenderTime = now;
+              scheduleRender();
+            }
+          }
+        } catch (e) {}
       }
     }
 
+    // 最終渲染一次，確保完整
+    renderMarkdownAndFeatures(lastContentEl, accumulatedText);
     renderMessages();
     saveConversations();
 
