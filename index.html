@@ -696,8 +696,16 @@ inputBox.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-if (conversations.length === 0) newConversation();
-else { activeId = conversations[0].id; renderSidebar(); renderMessages(); }
+// 過濾掉結構不完整的舊對話
+conversations = conversations.filter(c => c && typeof c === 'object' && c.id && Array.isArray(c.messages));
+
+if (conversations.length === 0) {
+  newConversation();
+} else {
+  activeId = conversations[0].id;
+  renderSidebar();
+  renderMessages();
+}
 
 </script>
 </body>
