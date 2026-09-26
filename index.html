@@ -46,7 +46,7 @@
   .menu div { padding: 8px 16px; font-size: 13px; cursor: pointer; white-space: nowrap; color: var(--text); }
   .menu div:hover { background: var(--hover); }
   #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  #topbar { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  #topbar { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: relative; }
   .modelBadge { font-size: 13px; font-weight: 600; color: var(--text); background: var(--hover); padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; }
   #messages { flex: 1; overflow-y: auto; padding: 24px; }
   .msgWrap { max-width: 76%; margin-bottom: 18px; display: flex; flex-direction: column; }
@@ -92,11 +92,17 @@
 </div>
 
 <div id="main">
-  <div id="topbar">
-    <div class="modelBadge">
+    <div id="topbar">
+    <div class="modelBadge" id="modelSelector" onclick="toggleModelMenu()" style="cursor:pointer;">
       <span>🤖</span>
-      <span>Claude Sonnet 5</span>
+      <span id="currentModelName">DeepSeek V4 Flash</span>
+      <span style="font-size:10px;">▼</span>
     </div>
+    <div id="modelMenu" class="menu" style="display:none; position:absolute; top:50px; left:16px; z-index:100;">
+      <div onclick="selectModel('deepseek-flash')">DeepSeek V4 Flash（預設）</div>
+      <div onclick="selectModel('claude-sonnet-5')">Claude Sonnet 5</div>
+    </div>
+  </div>
   </div>
   <div id="messages"></div>
   <div id="attachPreview" style="display:none;"></div>
