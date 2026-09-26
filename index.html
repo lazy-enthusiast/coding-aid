@@ -69,6 +69,7 @@
   .msgMeta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 11px; color: var(--text-light); }
   .msgMeta button { border: none; background: none; cursor: pointer; color: var(--text-light); font-size: 12px; padding: 2px 4px; border-radius: 4px; }
   .msgMeta button:hover { background: var(--hover); color: var(--text); }
+  .msgModel { font-size: 10px; color: var(--text-light); background: var(--hover); padding: 1px 6px; border-radius: 4px; opacity: 0.8; }
   #inputBar { display: flex; padding: 16px; border-top: 1px solid var(--border); gap: 8px; align-items: flex-end; }
   #inputBox { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--bg); color: var(--text); font-size: 14px; resize: none; max-height: 160px; overflow-y: auto; font-family: inherit; }
   #sendBtn { padding: 0 20px; border: none; border-radius: 8px; background: var(--accent); color: white; cursor: pointer; height: 40px; }
@@ -151,6 +152,7 @@ document.addEventListener('click', (e) => {
 document.getElementById('currentModelName').textContent = MODEL_NAMES[currentModelKey];
 
 let conversations = JSON.parse(localStorage.getItem('conversations') || '[]');
+conversations = conversations.filter(c => c && typeof c === 'object' && c.id && Array.isArray(c.messages));
 conversations.forEach(c => {
   c.lastAttachment = undefined;
   c.lastAiResponse = '';
@@ -354,6 +356,13 @@ function buildMessageEl(m, conv) {
   const time = document.createElement('span');
   time.textContent = formatTime(m.time);
   meta.appendChild(time);
+
+  if (m.role === 'bot' && m.model) {
+    const modelSpan = document.createElement('span');
+    modelSpan.className = 'msgModel';
+    modelSpan.textContent = MODEL_NAMES[m.model] || m.model;
+    meta.appendChild(modelSpan);
+  }
 
   if (m.role !== 'error') {
     const copyBtn = document.createElement('button');
@@ -579,7 +588,7 @@ async function sendMessage(overrideText) {
 }
 
 async function _doSend(conv, text, attachmentToSend, lastAiResponse, isFirstMessage) {
-  const botMsg = { role: 'bot', text: '', time: Date.now() };
+  const botMsg = { role: 'bot', text: '', time: Date.now(), model: currentModelKey };
   conv.messages.push(botMsg);
   renderMessages();
   const box = document.getElementById('messages');
@@ -696,15 +705,16 @@ inputBox.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-// 過濾掉結構不完整的舊對話
-conversations = conversations.filter(c => c && typeof c === 'object' && c.id && Array.isArray(c.messages));
-
 if (conversations.length === 0) {
   newConversation();
 } else {
   activeId = conversations[0].id;
-  renderSidebar();
-  renderMessages();
+  if (!activeId) {
+    newConversation();
+  } else {
+    renderSidebar();
+    renderMessages();
+  }
 }
 
 </script>
